@@ -42,3 +42,4 @@ See `docs/ARCHITECTURE.md#observability-and-evals` for what each run checks.
 
 The safe first execution operation is `create_box`. Adding tanks, rooms, equipment, booleans, and edits means adding a typed `Operation` schema, a validator, and a fixed script template—not allowing arbitrary LLM code. When `OPENAI_API_KEY` is set, the planner node uses strict structured output; otherwise it uses a deterministic local planner through the same interface.
 # cadpilot
+# cadpilot
