@@ -9,8 +9,6 @@ services:
       CAD_STORAGE_ROOT: /data/storage
     volumes:
       - ./storage:/data/storage
-    ports:
-      - "8000:8000"
     depends_on:
       redis:
         condition: service_healthy
@@ -53,7 +51,7 @@ services:
     environment:
       POSTGRES_DB: cadpilot
       POSTGRES_USER: cadpilot
-      POSTGRES_PASSWORD: cadpilot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cadpilot}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -65,11 +63,17 @@ services:
   web:
     build:
       context: ./frontend
-    environment:
-      NEXT_PUBLIC_CAD_API_URL: http://localhost:8000
-    ports:
-      - "3000:3000"
     depends_on:
+      - api
+
+  gateway:
+    image: caddy:2.8-alpine
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - web
       - api
 
 volumes:

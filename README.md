@@ -40,6 +40,6 @@ See `docs/ARCHITECTURE.md#observability-and-evals` for what each run checks.
 
 ## Current vertical-slice limits
 
-The safe first execution operation is `create_box`. Adding tanks, rooms, equipment, booleans, and edits means adding a typed `Operation` schema, a validator, and a fixed script template—not allowing arbitrary LLM code. When `OPENAI_API_KEY` is set, the planner node uses strict structured output; otherwise it uses a deterministic local planner through the same interface.
+The safe first execution operation is `create_box`. Adding tanks, rooms, equipment, booleans, and edits means adding a typed `Operation` schema, a validator, and a fixed script template—not allowing arbitrary LLM code. When `OPENAI_API_KEY` is set, the planner node uses strict structured output; otherwise it uses a deterministic local planner through the same interface. Set `OPENAI_BASE_URL` to route that planner through any OpenAI-compatible provider instead of OpenAI directly — e.g. OpenRouter (`https://openrouter.ai/api/v1`, with `OPENAI_MODEL` set to that provider's model id such as `openai/gpt-4.1-mini`). Leave it unset to use OpenAI's own endpoint.
 # cadpilot
 # cadpilot

@@ -137,3 +137,23 @@ def test_openai_planner_requires_strict_structured_plan():
     assert plan.operation and plan.operation.name == "Envelope"
     assert responses.kwargs["text"]["format"]["strict"] is True
     assert "current_model_state" in responses.kwargs["input"]
+
+
+def test_openai_planner_forwards_base_url_for_openai_compatible_providers(monkeypatch):
+    """base_url lets an OpenRouter-style OpenAI-compatible provider stand in for
+    OpenAI (e.g. base_url="https://openrouter.ai/api/v1", model="openai/gpt-4.1-mini").
+    Omitting it must keep using the OpenAI SDK's own default endpoint.
+    """
+    captured: list[dict] = []
+
+    class FakeOpenAI:
+        def __init__(self, **kwargs):
+            captured.append(kwargs)
+
+    monkeypatch.setattr("openai.OpenAI", FakeOpenAI)
+
+    OpenAIStructuredPlanner("test-key", "openai/gpt-4.1-mini", base_url="https://openrouter.ai/api/v1")
+    OpenAIStructuredPlanner("test-key", "test-model")
+
+    assert captured[0] == {"api_key": "test-key", "base_url": "https://openrouter.ai/api/v1"}
+    assert captured[1] == {"api_key": "test-key", "base_url": None}

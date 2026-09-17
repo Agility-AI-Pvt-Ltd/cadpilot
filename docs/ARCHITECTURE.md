@@ -48,6 +48,8 @@ flowchart TD
 
 The planner is a typed `CADPlanner` interface. When `OPENAI_API_KEY` is configured, the worker uses the Responses API with strict JSON Schema output for `PlanResult`; without a key it uses a deterministic bootstrap planner so local development remains offline. Either path enters the same Pydantic validation and recovery loop. The schema advertises only operations that the worker can execute—currently `create_box`; unsupported requests produce clarification rather than executable code. The MCP compiler still converts only validated operations into fixed FreeCAD script templates.
 
+`OpenAIStructuredPlanner` isn't locked to OpenAI's own endpoint: `OPENAI_BASE_URL` (see `.env.example`) is passed straight through to the `openai` Python SDK's `base_url`, so any provider that implements the Responses API works as a drop-in — for example OpenRouter at `https://openrouter.ai/api/v1`, with `OPENAI_MODEL` set to that provider's model id (`openai/gpt-4.1-mini`, not the bare OpenAI name). This only changes which endpoint serves the plan; the strict-schema validation, clarification gating, and recovery loop are unaffected.
+
 ## FreeCAD MCP integration
 
 The worker builds the CAD engine from the official [FreeCAD source repository](https://github.com/FreeCAD/FreeCAD), using its documented Pixi/CMake release build flow. `FREECAD_REF` selects the source revision; production deployments must use an immutable full Git SHA, rather than the development default `main`. This provides `freecadcmd` inside the isolated worker without needing a browser, desktop session, or a third-party FreeCAD base image.

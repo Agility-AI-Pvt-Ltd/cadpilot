@@ -105,6 +105,9 @@ dev = [
     { name = "pytest-asyncio" },
     { name = "ruff" },
 ]
+evals = [
+    { name = "langsmith" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -128,6 +131,7 @@ dev = [
     { name = "pytest-asyncio", specifier = ">=0.25,<1" },
     { name = "ruff", specifier = ">=0.8,<1" },
 ]
+evals = [{ name = "langsmith", specifier = ">=0.2,<1" }]
 
 [[package]]
 name = "celery"

@@ -1,0 +1,141 @@
+name: CI and EC2 demo deployment
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      rebuild_worker:
+        description: Rebuild and restart the FreeCAD worker after deployment (slow)
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cadpilot-ec2-deployment
+  cancel-in-progress: false
+
+jobs:
+  backend:
+    name: Backend checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - run: uv sync --all-groups --locked
+      - run: uv run ruff check .
+      - run: uv run pytest -q
+
+  frontend:
+    name: Frontend production build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  compose:
+    name: Compose configuration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Compose using non-secret example values
+        run: |
+          cp .env.example .env
+          docker compose config --quiet
+
+  deploy:
+    name: Deploy to EC2 demo host
+    needs: [backend, frontend, compose]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure pinned SSH access
+        env:
+          EC2_SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+          EC2_SSH_KNOWN_HOSTS: ${{ secrets.EC2_SSH_KNOWN_HOSTS }}
+        run: |
+          test -n "$EC2_SSH_PRIVATE_KEY"
+          test -n "$EC2_SSH_KNOWN_HOSTS"
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$EC2_SSH_PRIVATE_KEY" > ~/.ssh/cadpilot_ec2
+          chmod 600 ~/.ssh/cadpilot_ec2
+          printf '%s\n' "$EC2_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Sync application source without production secrets or data
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          test -n "$EC2_HOST"
+          test -n "$EC2_USER"
+          export RSYNC_RSH="ssh -i $HOME/.ssh/cadpilot_ec2 -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+          rsync -az --delete-delay \
+            --exclude '.git/' \
+            --exclude '.env' \
+            --exclude '.env.backup-*' \
+            --exclude '*.pem' \
+            --exclude '.venv/' \
+            --exclude 'node_modules/' \
+            --exclude '.next/' \
+            --exclude 'storage/' \
+            --exclude 'graphify-out/' \
+            --exclude '__pycache__/' \
+            --exclude '.pytest_cache/' \
+            --exclude '.ruff_cache/' \
+            --exclude 'build/' \
+            --exclude 'dist/' \
+            --exclude '*.egg-info/' \
+            --exclude 'worker-build.*' \
+            --exclude 'worker-watch.*' \
+            --exclude 'deploy*.log' \
+            ./ "$EC2_USER@$EC2_HOST:/opt/cadpilot/"
+
+      - name: Rebuild API, frontend, and gateway
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          ssh -i ~/.ssh/cadpilot_ec2 -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$EC2_USER@$EC2_HOST" '
+            set -eu
+            cd /opt/cadpilot
+            docker compose config --quiet
+            docker compose up -d --build api web gateway
+            curl --fail --silent --show-error http://localhost/health
+            docker compose ps
+          '
+
+      - name: Rebuild FreeCAD worker when explicitly requested
+        if: github.event_name == 'workflow_dispatch' && inputs.rebuild_worker
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+        run: |
+          ssh -i ~/.ssh/cadpilot_ec2 -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes "$EC2_USER@$EC2_HOST" '
+            set -eu
+            cd /opt/cadpilot
+            docker compose up -d --build cad-worker
+            docker compose ps cad-worker
+          '

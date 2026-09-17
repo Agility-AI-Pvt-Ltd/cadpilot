@@ -31,7 +31,7 @@ RUN git clone --filter=blob:none https://github.com/FreeCAD/FreeCAD.git . \
 WORKDIR /app
 COPY backend/pyproject.toml ./pyproject.toml
 COPY backend/app ./app
-RUN python3 -m pip install --break-system-packages --no-cache-dir . uv
+RUN python3 -m pip install --break-system-packages --no-cache-dir . uv freecad-mcp
 COPY worker/entrypoint.sh /entrypoint.sh
 RUN chmod 0555 /entrypoint.sh
 

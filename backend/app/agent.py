@@ -75,12 +75,19 @@ class BootstrapStructuredPlanner:
 
 
 class OpenAIStructuredPlanner:
-    """Optional server-side planner that emits only a typed plan or clarification."""
+    """Optional server-side planner that emits only a typed plan or clarification.
 
-    def __init__(self, api_key: str, model: str) -> None:
+    Works against any OpenAI-compatible provider that implements the
+    Responses API — set `base_url` (e.g. OpenRouter's
+    "https://openrouter.ai/api/v1") to route through it instead of OpenAI
+    directly. `model` must then use that provider's naming, e.g.
+    "openai/gpt-4.1-mini" on OpenRouter.
+    """
+
+    def __init__(self, api_key: str, model: str, base_url: str | None = None) -> None:
         from openai import OpenAI
 
-        self.client = OpenAI(api_key=api_key)
+        self.client = OpenAI(api_key=api_key, base_url=base_url)
         self.model = model
 
     def plan(self, state: CADAgentState) -> PlanResult:
@@ -182,7 +189,9 @@ class WorkflowServices:
             return self.planner
         settings = get_settings()
         if settings.openai_api_key:
-            return OpenAIStructuredPlanner(settings.openai_api_key, settings.openai_model)
+            return OpenAIStructuredPlanner(
+                settings.openai_api_key, settings.openai_model, settings.openai_base_url
+            )
         return BootstrapStructuredPlanner()
 
 
